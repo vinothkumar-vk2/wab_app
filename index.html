@@ -112,13 +112,13 @@ function parseCSV(csvText) {
 // Load CSV files from assets
 async function loadCSV() {
     try {
-        const zoneResponse = await fetch('dualzones.csv');
+        const zoneResponse = await fetch('dual_zones.csv');
         if (!zoneResponse.ok) throw new Error('dualzones.csv not found');
         const zoneText = await zoneResponse.text();
         dualZones = parseCSV(zoneText);
 
-        const srResponse = await fetch('srcolumns.csv');
-        if (!srResponse.ok) throw new Error('srcolumns.csv not found');
+        const srResponse = await fetch('S&R_columns.csv');
+        if (!srResponse.ok) throw new Error('S&R_columns.csv not found');
         const srText = await srResponse.text();
         srColumns = parseCSV(srText);
 
@@ -193,3 +193,4 @@ loadCSV();
 </script>
 </body>
 </html>
+
