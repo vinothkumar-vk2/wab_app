@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support Resistance Finder</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: Arial, sans-serif;
+    background: #000;
+    color: white;
+    text-align: center;
+    margin: 0;
+    padding: 10px;
+    min-height: 100vh;
+}
+.container {
+    max-width: 400px;
+    margin: 20px auto;
+    padding: 20px;
+    border: 1px solid #444;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0,255,153,0.3);
+}
+input {
+    width: 100%;
+    padding: 15px;
+    margin: 10px 0;
+    font-size: 18px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    background: #111;
+    color: white;
+}
+button {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(45deg, #00ff99, #00cc77);
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+button:active { transform: scale(0.98); }
+table {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+    background: #111;
+    border-radius: 8px;
+    overflow: hidden;
+}
+th, td {
+    border: 1px solid #444;
+    padding: 12px;
+    text-align: center;
+}
+th { background: #00ff99; color: #000; font-weight: bold; }
+.level-support { color: #00ff99; }
+.level-resistance { color: #ff4444; }
+.not-found { color: #888; }
+h2 { margin-bottom: 20px; color: #00ff99; }
+#error { color: #ff4444; margin-top: 10px; }
+@media (max-width: 480px) {
+    .container { margin: 10px; padding: 15px; }
+    th, td { padding: 10px 5px; font-size: 14px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <h2>📈 Support & Resistance Finder</h2>
+    <input type="number" id="price" placeholder="Enter Current Price (e.g., 150.50)" step="0.01">
+    <button onclick="findLevels()">🔍 Find Levels</button>
+    <div id="status">Loaded data...</div>
+    <div id="error"></div>
+    <table>
+        <tr><th>Type</th><th>Level</th></tr>
+        <tr><td>Zone Support</td><td id="zone_support" class="not-found">-</td></tr>
+        <tr><td>Zone Resistance</td><td id="zone_resistance" class="not-found">-</td></tr>
+        <tr><td>S&R Support</td><td id="sr_support" class="not-found">-</td></tr>
+        <tr><td>S&R Resistance</td><td id="sr_resistance" class="not-found">-</td></tr>
+    </table>
+</div>
+
+<script>
+let dualZones = [];
+let srColumns = [];
+
+// Fixed CSV parser - handles quotes, escapes properly
+function parseCSV(csvText) {
+    const lines = csvText.trim().split(/\r?\n/);
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const values = lines[i].split(',').map(v => parseFloat(v.replace(/"/g, '')));
+        if (values.length >= headers.length) {
+            const obj = {};
+            for (let j = 0; j < headers.length; j++) {
+                obj[headers[j]] = values[j];
+            }
+            rows.push(obj);
+        }
+    }
+    return rows;
+}
+
+// Load CSV files from assets
+async function loadCSV() {
+    try {
+        const zoneResponse = await fetch('dualzones.csv');
+        if (!zoneResponse.ok) throw new Error('dualzones.csv not found');
+        const zoneText = await zoneResponse.text();
+        dualZones = parseCSV(zoneText);
+
+        const srResponse = await fetch('srcolumns.csv');
+        if (!srResponse.ok) throw new Error('srcolumns.csv not found');
+        const srText = await srResponse.text();
+        srColumns = parseCSV(srText);
+
+        document.getElementById('status').textContent = `Loaded ${dualZones.length} zones, ${srColumns.length} S&R levels`;
+    } catch (error) {
+        document.getElementById('status').textContent = 'Error loading data';
+        document.getElementById('error').textContent = error.message;
+        console.error(error);
+    }
+}
+
+function findLevels() {
+    const priceInput = document.getElementById('price');
+    const price = parseFloat(priceInput.value);
+    if (isNaN(price) || price <= 0) {
+        document.getElementById('error').textContent = 'Enter valid positive price';
+        return;
+    }
+    document.getElementById('error').textContent = '';
+
+    // Zone Support: highest below price
+    let zoneSupport = null;
+    dualZones.forEach(row => {
+        if (row.zone_level && row.zone_level < price) {
+            if (zoneSupport === null || row.zone_level > zoneSupport) {
+                zoneSupport = row.zone_level;
+            }
+        }
+    });
+    document.getElementById('zone_support').innerText = zoneSupport ? zoneSupport.toFixed(2) : 'Not found';
+    document.getElementById('zone_support').className = zoneSupport ? 'level-support' : 'not-found';
+
+    // Zone Resistance: lowest above price
+    let zoneResistance = null;
+    dualZones.forEach(row => {
+        if (row.zone_level && row.zone_level > price) {
+            if (zoneResistance === null || row.zone_level < zoneResistance) {
+                zoneResistance = row.zone_level;
+            }
+        }
+    });
+    document.getElementById('zone_resistance').innerText = zoneResistance ? zoneResistance.toFixed(2) : 'Not found';
+    document.getElementById('zone_resistance').className = zoneResistance ? 'level-resistance' : 'not-found';
+
+    // S&R Support
+    let srSupport = null;
+    srColumns.forEach(row => {
+        if (row.support && row.support < price) {
+            if (srSupport === null || row.support > srSupport) {
+                srSupport = row.support;
+            }
+        }
+    });
+    document.getElementById('sr_support').innerText = srSupport ? srSupport.toFixed(2) : 'Not found';
+    document.getElementById('sr_support').className = srSupport ? 'level-support' : 'not-found';
+
+    // S&R Resistance
+    let srResistance = null;
+    srColumns.forEach(row => {
+        if (row.resistance && row.resistance > price) {
+            if (srResistance === null || row.resistance < srResistance) {
+                srResistance = row.resistance;
+            }
+        }
+    });
+    document.getElementById('sr_resistance').innerText = srResistance ? srResistance.toFixed(2) : 'Not found';
+    document.getElementById('sr_resistance').className = srResistance ? 'level-resistance' : 'not-found';
+}
+
+// Load on start
+loadCSV();
+</script>
+</body>
+</html>
